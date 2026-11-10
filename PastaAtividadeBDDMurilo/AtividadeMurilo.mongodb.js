@@ -1,41 +1,47 @@
-use('LojaEletronicos_DB');
+use('LojaAnalytics_DB');
 
-db.pedidos.insertOne({
-  _id: "PED-10045",
-  data_pedido: "2026-10-18",
-  status: "Em Processamento",
-  valor_total: 496.20,
-  cliente: {
-    nome: "Murilo Gonzaga",
-    email: "murilo.gonzaga@email.com",
-    endereco_entrega: {
-      rua: "Rua das Flores",
-      numero: 120,
-      bairro: "Centro",
-      cidade: "Araras"
+// Limpa a coleção antes de povoar
+db.Vendas.drop();
+
+db.Vendas.insertMany([
+  { "produto": "Teclado Mecânico RGB", "categoria": "Periféricos", "preco": 250.00, "quantidade": 4, "status": "Concluido", "cidade": "Campinas" },
+  { "produto": "Mouse Gamer 12000 DPI", "categoria": "Periféricos", "preco": 120.00, "quantidade": 10, "status": "Concluido", "cidade": "Limeira" },
+  { "produto": "Monitor UltraWide 29'", "categoria": "Monitores", "preco": 1200.00, "quantidade": 1, "status": "Cancelado", "cidade": "Campinas" },
+  { "produto": "Headset 7.1 Surround", "categoria": "Áudio", "preco": 300.00, "quantidade": 5, "status": "Concluido", "cidade": "Piracicaba" },
+  { "produto": "Cadeira Ergonômica", "categoria": "Mobiliário", "preco": 950.00, "quantidade": 2, "status": "Concluido", "cidade": "Limeira" },
+  { "produto": "Mousepad Speed Extra Grande", "categoria": "Periféricos", "preco": 80.00, "quantidade": 15, "status": "Concluido", "cidade": "Campinas" },
+  { "produto": "Caixa de Som Bluetooth", "categoria": "Áudio", "preco": 180.00, "quantidade": 3, "status": "Cancelado", "cidade": "Piracicaba" }
+]);
+
+db.Vendas.aggregate([
+  // Estágio 1: $match -> Filtrar apenas vendas com status "Concluido"
+  {
+    $match: { status: "Concluido" }
+  },
+
+  // Estágio 2: $group -> Agrupar por categoria e calcular a soma total das vendas
+  {
+    $group: {
+      _id: "$categoria",
+      total_faturamento: {
+        $sum: { $multiply: ["$preco", "$quantidade"] }
+      },
+      quantidade_itens_vendidos: { $sum: "$quantidade" }
     }
   },
-  itens: [
-    { produto: "Teclado Mecânico", quantidade: 1, preco_unitario: 280.50 },
-    { produto: "Mouse Sem Fio", quantidade: 2, preco_unitario: 89.90 },
-    { produto: "Cabo HDMI 2m", quantidade: 1, preco_unitario: 35.90 }
-  ]
-});
 
-db.pedidos.find({ _id: "PED-10045" });
+  // Estágio 3: $project -> Formatar a saída (renomear campos e ocultar o _id padrão)
+  {
+    $project: {
+      _id: 0,
+      categoria: "$_id",
+      total_faturamento: 1,
+      quantidade_itens_vendidos: 1
+    }
+  },
 
-/*
-EXERCÍCIO REFLEXIVO
-
-Pergunta: Qual é a grande vantagem do MongoDB ao guardar tudo isso dentro de
-um único documento incorporado?
-
-Resposta: A grande vantagem é que o pedido já fica completo em um só lugar.
-Os dados do cliente, o endereço de entrega e os itens comprados são lidos
-juntos, em uma única consulta, sem precisar de JOIN entre as tabelas
-Clientes, Enderecos, Pedidos e Itens. Isso deixa a consulta mais simples e
-mais rápida, porque o banco não precisa cruzar várias tabelas, e o documento
-fica autocontido, representando o pedido exatamente como ele era na hora da
-compra. Também facilita a modelagem, já que os dados que são usados juntos
-ficam guardados juntos.
-*/
+  // Estágio 4: $sort -> Ordenar do maior faturamento para o menor (-1)
+  {
+    $sort: { total_faturamento: -1 }
+  }
+]);
